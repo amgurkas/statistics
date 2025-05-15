@@ -1,0 +1,528 @@
+---
+title: "DATA 606 Data Project Proposal"
+author: "Alyssa Gurkas"
+output:
+  pdf_document: default
+  html_document:
+    df_print: paged
+---
+
+### Background
+The U.S. Department of Energy prepares an annual Electric Power Report that 
+includes information about energy production, sales, consumption of fossil 
+fuels, environmental data, and other topics related to energy. 
+Additionally, the U.S. Department of Commerce tracks state annual summary 
+statistics which include GDP by state from years 1998-2023.
+
+### Project Description 
+This project will explore if states with a higher GDP are more likely to 
+release CO2 into the atmosphere from energy production than states with a lower 
+GDP. 
+
+
+### Data Preparation
+
+```{r load-libraries, eval=TRUE}
+library(readxl)
+library(tidyverse)
+library(Hmisc)
+library(plotly)
+library(infer)
+```
+
+```{r load-datasets, echo=TRUE}
+emissions <- read_excel("emission_annual.xlsx")
+stategdp <- read_excel("stategdp_summary.xlsx")
+```
+
+```{r data-transformation-emissions-data, echo=TRUE}
+emissions_v2 <- emissions %>% 
+  filter(`Year` >=1998,
+         `Producer Type` == "Total Electric Power Industry",
+         `Energy Source` == "All Sources",
+         `State` != "US-TOTAL")
+
+emissions_v3 <- emissions |> 
+  filter(`Year` >=1998,
+         `State` != "US-TOTAL")
+  
+```
+
+```{r data-transformation-stategdp, echo=TRUE}
+stategdp_v2 <- stategdp %>% 
+  select(-GeoFips) %>% 
+  pivot_longer(!GeoName, names_to = "year", values_to = "gdp") %>% 
+  filter(`GeoName` != "United States") %>% 
+  mutate(`State`= state.abb[match(`GeoName`,state.name)]) %>% 
+  select(-GeoName) %>% 
+  drop_na()
+
+stategdp_v2$year <- as.numeric(stategdp_v2$year)
+
+stategdp_v3 <- stategdp_v2 %>% 
+  rename("Year" = "year",
+         "GDP" = "gdp")
+```
+
+```{r data-transformation-join, echo=TRUE}
+state_gdp_emissions <- left_join(stategdp_v3, emissions_v2, 
+                                 by = c('State','Year'))
+
+state_gdp_emissions <- state_gdp_emissions |> 
+  drop_na() |> 
+  rename("CO2" = "CO2\r\n(Metric Tons)")
+
+state_gdp_emissions_v2 <- left_join(stategdp_v3, emissions_v3, 
+                                 by = c('State','Year'))
+
+state_gdp_emissions_v2 <- state_gdp_emissions_v2 |> 
+  drop_na() |> 
+  rename("CO2" = "CO2\r\n(Metric Tons)")
+```
+
+```{r data-transformation-energy-prod-class, echo=TRUE}
+energy_types <- unique(emissions$`Energy Source`)
+producer_types <- unique(emissions$`Producer Type`)
+```
+
+### Data Exploration
+
+```{r CO2-GDP-eda, echo=TRUE}
+# data based on the summary statement does not seem evenly distributed
+summary(state_gdp_emissions$CO2)
+summary(state_gdp_emissions$GDP)
+
+# histogram of CO2 
+ggplot(state_gdp_emissions, aes(x=CO2, fill=State))+
+  geom_histogram()+
+  xlab("CO2")
+
+# histogram of GDP
+ggplot(state_gdp_emissions, aes(x=GDP, fill=State))+
+  geom_histogram()+
+  xlab("GDP")
+
+# boxplot of GDP and CO2
+
+# try to group by quartiles and put side by side 
+
+gdp_qg <- quantile(state_gdp_emissions$GDP, probs = c(0.25,0.5,0.75,1))
+
+state_gdp_emissions <- state_gdp_emissions |> 
+  mutate(GDP_QG = case_when(GDP < 389481.00 ~ "Bottom 75%",
+                            GDP >= 389481.00 ~ "Top 25%"))
+
+# question - how do I create a box plot for each quartile? are the quartiles 
+# grouped correctly? Other ideas on how to group this? 
+
+ggplot(state_gdp_emissions, aes(x=GDP, 
+                                y=CO2,
+                                group= GDP_QG
+                                )) +
+geom_boxplot() +
+xlab("GDP") +
+ylab("CO2 Emissions") 
+```
+
+```{r energy-categorical-eda, echo=TRUE}
+count_energy_source <- state_gdp_emissions_v2 %>% 
+  group_by(`Energy Source`) %>% 
+  count()
+
+count_energy_source
+
+count_producer_type <- state_gdp_emissions_v2 %>% 
+  group_by(`Producer Type`) %>% 
+  count()
+
+count_producer_type
+
+#include bar graph of Energy Source and Producer Type
+
+state_gdp_emissions_v2 <- state_gdp_emissions_v2 %>% 
+  filter(`Producer Type` != "Total Electric Power Industry",
+         `Energy Source` != "All Sources")
+
+ggplot(state_gdp_emissions_v2, aes(x=`Energy Source`, group = `Energy Source`))+
+  geom_bar() +
+  xlab("Energy Source")
+
+ggplot(state_gdp_emissions_v2, aes(x=`Producer Type`, group = `Producer Type`))+
+  geom_bar() +
+  xlab("Producer Type")
+
+```
+
+
+```{r summary-statistics-plots, echo=TRUE}
+describe(state_gdp_emissions)
+#Note: removed DC as there is missing data 
+
+options(scipen=999)
+
+gdp_plot <- ggplot(state_gdp_emissions, aes(x=Year, y=GDP, color=State))+
+  geom_line()+
+  labs(title ="State GDP Over Time", 
+       x="Year",
+       y= "GDP (in billions)")+
+  theme(legend.position="none")
+
+co2_plot <- ggplot(state_gdp_emissions, aes(x=Year, y=`CO2`, color=State))+
+  geom_line()+
+  labs(title ="State CO2 Emissions from Energy Production Over Time", 
+       x="Year",
+       y= "CO2 Emissions (Metric Tons)")+
+    theme(legend.position="none")
+```
+
+
+```{r plotly-plots, echo=TRUE}
+ggplotly(gdp_plot)
+
+ggplotly(co2_plot)
+
+```
+
+```{r summary-statistics, echo=TRUE}
+
+state_gdp_emissions |> 
+summarise(median_GDP = median(GDP),
+            mean_GDP = mean(GDP),
+            max_GDP = max(GDP),
+            iqr_GDP = IQR(GDP),
+            sd_GDP = sd(GDP)
+  )
+
+state_gdp_emissions |> 
+summarise(median_CO2 = median(CO2),
+            mean_CO2 = mean(CO2),
+            max_CO2 = max(CO2),
+            iqr_CO2 = IQR(CO2),
+            sd_CO2 = sd(CO2)
+  )
+
+```
+
+### Hypothesis Test
+
+**H~0~: States with a larger GDP emit the same amount of CO2 from energy** 
+**production as states with a smaller GDP.**
+</br>
+**H~A~: States with a larger GDP emit more CO2 from energy** 
+**production than states with a smaller GDP.**
+
+```{r t-test-gdp-CO2, echo=TRUE}
+state_gdp_emissions <- as.data.frame(state_gdp_emissions)
+state_gdp_emissions$GDP_QG <- as.factor(state_gdp_emissions$GDP_QG)
+
+obs_diff <- state_gdp_emissions %>%
+  specify(CO2 ~ GDP_QG) %>%
+  calculate(stat = "diff in means", order = c("Top 25%", "Bottom 75%"))
+
+null_dist <- state_gdp_emissions %>%
+  specify(CO2 ~ GDP_QG) %>%
+  hypothesize(null = "independence") %>%
+  generate(reps = 1000, type = "permute") %>%
+  calculate(stat = "diff in means", order = c("Top 25%", "Bottom 75%"))
+
+# pairedSamplesTTest(
+# formula = CO2 ~ GDP_QG + (State),
+# data = state_gdp_emissions
+# )
+# 
+# pairedSamplesTTest(
+# formula = CO2 ~ GDP, # two sided formula: outcome ~ group
+# data = state_gdp_emissions, # data frame
+# id = "State" # name of the id variable
+# )
+
+```
+
+```{r histo-null-hypoth, echo=TRUE}
+ggplot(data = null_dist, aes(x = stat)) +
+  geom_histogram()
+```
+
+The chunk below will evaluate how many `null` permutations have a difference of 
+at least `obs_stat`.
+
+```{r prop-null-diff-obs_stat, echo=TRUE}
+null_dist |> 
+  filter(`stat` >= obs_diff) |> 
+  count()
+```
+
+There are no permutations that have a difference of at least `obs_diff`, or
+43125045.
+
+Now that the test is initialized and the null distribution formed, 
+p-value will be calculated for the hypothesis test using the function
+`get_p_value`.
+
+```{r inf-weight-habit-ht-pvalue}
+null_dist %>%
+  get_p_value(obs_stat = obs_diff, direction = "two_sided")
+```
+
+This the standard workflow for performing hypothesis tests.
+
+```{r get-ci, echo=TRUE}
+
+get_confidence_interval(null_dist, 
+                        level = 0.95, 
+                        type = NULL, 
+                        point_estimate = NULL) # how can I determine what the 
+                                               # point estimate should be?
+
+# get_confidence_interval(point_estimate = obs_mean,
+#                           # at the 95% confidence level
+#                           level = .95,
+#                           # using the standard error
+#                           type = "se")
+```
+
+Based on these results, we can conclude that the difference between the
+difference in CO2 in these two groups lies somewhere between -5166621 and 
+5731007. From the results of the t-test, we can conclude that that we are 95% 
+certain that the mean of the two groups is somewhere between X and X. Based on 
+this, I would [reject/accept] the null hypothesis.
+
+*Question: The confidence interval is very large. What does this mean? Should I* 
+*accept the null hypothesis? How can I complete the last two sentences?*
+
+### Linear Regression 
+
+To determine if there is a relationship between the CO2 emitted from energy
+production in the respective state, and the state GDP, a scatter plot can be
+used to visualize the linear relationship. 
+
+```{r CO2-GDP-scatterplot, echo=TRUE}
+scatterplot_CO2_GDP <- ggplot(state_gdp_emissions, aes(x=GDP , y=CO2, color=State)) +
+  geom_point()
+
+ggplotly(scatterplot_CO2_GDP)
+```
+
+Based on the plot produced, there is evidence that there is a relationship, but
+there seems to be a few outliers. Therefore, I will continue to complete some
+exploratory analysis. 
+
+
+```{r CO2-GDP-cor, echo=TRUE}
+state_gdp_emissions %>%
+  summarise(cor(GDP, CO2))
+```
+
+```{r m1, echo=TRUE}
+m1 <- lm(CO2 ~ GDP, data = state_gdp_emissions)
+```
+
+```{r m1-summary, echo=TRUE}
+summary(m1)
+```
+
+```{r scatterplot-w-model, echo=TRUE}
+ggplot(data = state_gdp_emissions, aes(x = GDP, y = CO2)) +
+  geom_point() +
+  stat_smooth(method = "lm", se = FALSE)
+```
+
+```{r residuals-plot, echo=TRUE}
+ggplot(data = m1, aes(x = .fitted, y = .resid)) +
+  geom_point() +
+  geom_hline(yintercept = 0, linetype = "dashed") +
+  xlab("Fitted values") +
+  ylab("Residuals")
+```
+
+### Analysis Excluding TX, CA
+
+```{r exl-CA-TX, echo=TRUE}
+state_gdp_emissions_v3 <- state_gdp_emissions |> 
+  filter(`State` != "CA",
+         `State` != "TX")
+```
+
+```{r CO2-GDP-m2, echo=TRUE}
+state_gdp_emissions_v3 %>%
+  summarise(cor(GDP, CO2))
+
+m2 <- lm(CO2 ~ GDP, data = state_gdp_emissions_v3)
+
+summary(m2)
+
+ggplot(data = state_gdp_emissions_v3, aes(x = GDP, y = CO2)) +
+  geom_point() +
+  stat_smooth(method = "lm", se = FALSE)
+
+ggplot(data = m2, aes(x = .fitted, y = .resid)) +
+  geom_point() +
+  geom_hline(yintercept = 0, linetype = "dashed") +
+  xlab("Fitted values") +
+  ylab("Residuals")
+
+car::residualPlot(model=m2)
+
+ggplot(data = m2, aes(x = .resid)) +
+  geom_histogram(bins = 30) +
+  xlab("Residuals") 
+
+ggplot(data = m2, aes(sample = .resid)) +
+  stat_qq()
+```
+
+### Analysis with Log Transformation
+```{r m3-log, echo=TRUE}
+
+m3 <- lm(log(CO2) ~ GDP, data = state_gdp_emissions)
+
+summary(m3)
+
+ggplot(data = m3, aes(x = .fitted, y = .resid)) +
+  geom_point() +
+  geom_hline(yintercept = 0, linetype = "dashed") +
+  xlab("Fitted values") +
+  ylab("Residuals")
+
+car::residualPlot(model=m3)
+
+ggplot(data = m3, aes(x = .resid)) +
+  geom_histogram(bins = 30) +
+  xlab("Residuals") 
+
+ggplot(data = m3, aes(sample = .resid)) +
+  stat_qq()
+
+```
+
+###### Note On Producer Types (Business Classification)
+
+The EIA classifies Producer Types on page 227 of the Electric Power Annual 2023
+Annual Report:
+
+1. Non-utility producers: entities that own or operate electric generating units
+but are not subject to direct economic regulation of rates, such as by state
+utility commissions. Non utility power producers do not have a designated 
+franchised service area. In addition to entities whose primary business is the 
+production and sale of electric power, entities with other primary business 
+classifications can and do sell electric power. These can consist of, for 
+example, manufacturing facilities and paper mills. 
+
+2. Electric Utility (Sector 1): all regulated plants with a primary purpose of 
+selling electricity in the public markets (NAICS = 22).
+
+3. Independent Power Producers (Sector 2): All non-regulated plants with a 
+primary purpose of electric power generation and a primary purpose of selling
+electricity in the public markets (NAICS = 22) with no ability to cogenerate
+heat and power. 
+
+4. Electric Power, Combined Heat and Power (Sector 3): All non-regulated plants 
+with a primary purpose of electric power generation and a primary purpose of 
+selling electricity in the public markets (NAICS = 22) with the ability to 
+cogenerate heat and power.
+
+5. Commercial, Non-Combined Heat and Power (Sector 4): All plants with a 
+commercial primary purpose with no ability to cogenerate heat and power.
+
+6. Commercial, Combined Heat and Power (Sector 5): All plants with a commercial
+primary purpose with the ability to cogenerate heat and power.
+
+7. Industrial, Non-Combined Heat and Power (Sector 6): All plants with an 
+industrial primary purpose with no ability to cogenerate heat and power.
+
+8. Industrial, Combined Heat and Power (Sector 7): All plants with an industrial 
+primary purpose with the ability to cogenerate heat and power.
+
+**The EIA defines renewable energy within the footnote section on page 33 of the 
+Electric Power Annual 2023 Annual Report:**
+
+- Renewable includes: wood, black liquor, other wood waste, biogenic municipal 
+solid waste, landfill gas, sludge waste, agriculture byproducts, other biomass, 
+geothermal, solar thermal, photovoltaic energy, and wind.
+
+The EIA classifies Energy Types within the footnote section on page 74 of the 
+Electric Power Annual 2023 Annual Report:
+
+- Coal includes: anthracite, bituminous, subbituminous, lignite, and waste coal; 
+synthetic coal and refined coal; and beginning in 2011, coal-derived synthesis gas. 
+Prior to 2011 coal-derived synthesis gas was included in Other Fossil Gas.
+
+- Petroleum Liquids includes: distillate and residual fuel oils, jet fuel, 
+kerosene, waste oil, and beginning in 2011, propane. Prior to 2011 propane was 
+included in Other Fossil Gas.
+
+- Petroleum Coke includes: petroleum coke-derived synthesis gas. Prior to 2011, 
+petroleum coke-derived synthesis gas was included in Other Fossil Gas. Other 
+Fossil Gas includes gaseous propane, blast furnace gas, other manufactured and 
+waste gases derived from fossil fuels other than hydrogen.
+
+
+### Research question 
+
+**Are states with higher GDPs more likely to produce energy that emits CO2?**
+
+### Cases 
+
+Each case represents a states annual energy usage and GDP for the respective 
+year. There are 1326 rows in the data set and eight columns:
+1. Year
+<br/>
+2. State
+<br/>
+3. Producer Type
+<br/>
+4. Energy Source
+<br/>
+5. CO2 (Metric Tons)
+<br/>
+6. SO2 (Metric Tons)
+<br/>
+7. NOx (Metric Tons)
+<br/>
+8. GDP
+
+### Data collection 
+This project uses data from the Department of Energy's (DOE) Annual Electric 
+Power Report and the U.S. Department of Commerce (DOC) State Annual Summary 
+Statistics.
+
+The Annual Electric Power Report is prepared by the Office of Energy Production,
+Conversion, and Delivery (EPCD), within the U.S. Energy Information 
+Administration in DOE. Data in the report is provided directly by respondents 
+into DOE's information systems. For more information about the data collection 
+process, please see the *Technical Notes: Data Quality and Submission* section 
+of the Electric Power Annual Report: eia.gov/electricity/annual/pdf/epa.pdf, on
+page 206.
+
+The State Annual Summary Statistics provided by DOC are estimated using two data
+sources: (1) wages and salaries data from the Bureau of Labor Statistics and (2) 
+value-added, receipts, and payroll data from the Census Bureau's economic 
+censuses. These data sources are then used to estimate the State GDP following 
+the estimation methodology outlined in the DOC's Gross Domestric Product by 
+State Estimation Methodology. For more information please see the methodology:
+bea.gov/sites/default/files/methodologies/0417_GDP_by_State_Methodology.pdf.
+
+### Type of study 
+
+This is an observational study.
+
+### Data Sources
+1. [DOC/BEA's GDP and Personal Income by State](https://www.bea.gov/itable/regional-gdp-and-personal-income)
+<br>
+2. [DOE/EIA's Electric Power Industry Esimated Emissions by State](https://www.eia.gov/electricity/data.php)
+
+
+### Response 
+
+The response variable is state GDP and is numerical.
+
+
+### Explanatory 
+
+The explanatory variable is CO2 Emissions from Energy Production and is 
+numerical.
+
+
+
+
+

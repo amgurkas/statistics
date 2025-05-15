@@ -1,0 +1,65 @@
+---
+title: "DATA 606 Data Project Proposal"
+author: "Alyssa Gurkas"
+output: pdf_document
+---
+
+### Background
+In the United States, water pollution is promulgated by the Clean Water Act and is regulated through the National Pollutant Discharge Elimination System (NPDES). Under this system, all facilities that discharge pollutants must obtain a NPDES permit. The Environmental Protection Agency regulates this system, and many states have been granted authority of NPDES programs within the respective state, meaning the state implements and writes NPDES permits. Under the Clean Water Act, permit terms are five years, and a full application must be provided within 180 days of the expiration date for permittees who wish to renew the permit. To streamline the permit renewal process, New York State implemented the Environmental Benefit Permit Strategy (EBPS) which allows permittees to provide a form instead of a full permit application if the facility is eligible. 
+
+### Project Description 
+This project will explore if certain New York State issued State Pollutant Discharge Elimination System subject to a fast-track renewal from EBPS are more likely to discharge into impaired waters than other permits. ^[These permits can be tracked through NYS DEC DART through permit statuses “Extended Indefinitely” or “Admin Continued”.]
+
+
+### Data Preparation
+*Step 1:* Conduct a spatial analysis within ArcGIS Pro to identify which NPDES permits in New York State discharge into impaired waters with TMDLs . For this step, data sources one through three will be used. Please see the data sources section for more information.
+</br>
+*Step 2:* Load the data from the spatial analysis into R using a .csv file, and identify which permits are subject to EBPS by joining with the DART data source. The EBPS identification method will be if the permit statuses are considered “Extended Indefinitely” or “Admin Continued”.
+</br>
+*Step 3:* Take random sample of permits to determine if fast-track renewed permits are more likely to discharge into impaired waters. Note: to ensure a sufficient number of fast-track permits are included, this analysis may use a stratified random sampling method. 
+
+### Research question 
+
+**Are NY SPDES permits with the status "indefinitely continued" and "administratively continued" permits more likely to discharge into waters that are impaired?**
+
+### Cases 
+
+Each case represents a NPDES permit in the state of New York. There are 7246 observations in the ECHO facilities data set. Some permits may be excluded due to missing data. Therefore, this number is subject to change.  
+
+### Data collection 
+
+1. ATTAINS Total Maximum Daily Load (TMDL) Areas: this data is provided by U.S. states to the EPA under Integrated Reports. The Clean Water Act requires states, territories, and authorized tribes to monitor water pollution and report to the EPA every two years on the waters evaluated. 
+2. ECHO Permit Outfall Locations: this data is provided to the EPA by U.S. states as permit outfall locations are updated. 
+3. WATERS GeoViewer Surface Water: the data within EPA Office of Water's Watershed Assessment, Tracking and Environmental Results System (WATERS) integrates water-related information from a few data sources. As this tool integrates a variety of data sources, the data is updated automatically, once it is updated by the end-user in other platforms. 
+4. NYS DEC’s DART: this data is updated on a daily and is populated by information provided by permittees. 
+
+### Type of study 
+
+This is an observational study.
+
+### Data Sources
+This project will use data from a few sources that are open to the public:
+1. ATTAINS Total Maximum Daily Load (TMDL) Areas: The Assessment, Total Maximum Daily Load (TMDL) Tracking and Implementation System (ATTAINS) is an online system for accessing information about the conditions of U.S. surface waters. This feature layer contains information about surface waters that are subject to a TMDL. For more information please see these links: (1) segs-epa.hub.arcgis.com/datasets/EPA::attains-total-maximum-daily-load-areas-epa-2022/about, (2) epa.gov/waterdata/attains.
+2. NPDES Facilities Outfalls Layer: This data source is a feature layer that includes information from EPA’s Enforcement and Compliance History Online (ECHO) about NPDES facilities and the location of the respective outfall locations. For more information please see these links: (1) echo.epa.gov/tools/data-downloads/icis-npdes-discharge-points-download-summary#definitions, (2) services.arcgis.com/cJ9YHowT8TU7DUyn/ArcGIS/rest/services/oeca__echo__npdes_facilities_outfalls/FeatureServer/0. 
+3. WATERS GeoViewer Surface Water: This data source is used to visualize the watershed delineation within New York State. For more information please see: epa.gov/waterdata/waters-geoviewer.
+4. NYS DEC’s DART: NYS DEC’s DART Application is the Department Application Review and Tracking on the web application and includes information about environmental permits issued by NYS DEC. For more information please see: extapps.dec.ny.gov/cfmx/extapps/envapps/index.cfm. 
+
+
+### Response 
+
+The response variable is water classification (meaning if the water is impaired) and is categorical.
+
+
+### Explanatory 
+
+The response variable is permit type (meaning if the permit is subject to a fast-track renewal) and is categorical.
+
+
+### Relevant summary statistics 
+
+This will be provided at a later date, when the spatial analysis is completed. Estimated completion date is 11/8/24. To complete exploratory analysis the following summary statistics and analysis will be conducted:
+1. Running the describe function on the dataset
+2. Develop plots (ex. scatter plot of permits issued over time, histogram of permits by type, scatter plot of water impairment status over time, bar chart of water impairment status)
+3. Running numerical summaries for permit type and water impairment status including mean, median, standard deviation, variance, interquartile range
+
+

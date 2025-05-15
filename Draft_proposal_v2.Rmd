@@ -1,0 +1,190 @@
+---
+title: "DATA 606 Data Project Proposal"
+author: "Alyssa Gurkas"
+output:
+  pdf_document: default
+  html_document:
+    df_print: paged
+---
+
+### Background
+The U.S. Department of Energy prepares an annual Electric Power Report that 
+includes information about energy production, sales, consumption of fossil 
+fuels, environmental data, and other topics related to energy. 
+Additionally, the U.S. Department of Commerce tracks state annual summary 
+statistics which include GDP by state from years 1998-2023.
+
+### Project Description 
+This project will explore if states with a higher GDP are more likely to 
+release CO2 into the atmosphere than states with a lower GDP. 
+
+
+### Data Preparation
+
+```{r load-libraries, eval=TRUE}
+library(readxl)
+library(tidyverse)
+library(Hmisc)
+library(plotly)
+```
+
+```{r load-datasets, echo=TRUE}
+emissions <- read_excel("emission_annual.xlsx")
+stategdp <- read_excel("stategdp_summary.xlsx")
+```
+
+```{r data-transformation-emissions-data, echo=TRUE}
+emissions_v2 <- emissions %>% 
+  filter(`Year` >=1998,
+         `Producer Type` == "Total Electric Power Industry",
+         `Energy Source` == "All Sources",
+         `State` != "US-TOTAL")
+```
+
+```{r data-transformation-stategdp, echo=TRUE}
+stategdp_v2 <- stategdp %>% 
+  select(-GeoFips) %>% 
+  pivot_longer(!GeoName, names_to = "year", values_to = "gdp") %>% 
+  filter(`GeoName` != "United States") %>% 
+  mutate(`State`= state.abb[match(`GeoName`,state.name)]) %>% 
+  select(-GeoName) %>% 
+  drop_na()
+
+stategdp_v2$year <- as.numeric(stategdp_v2$year)
+
+stategdp_v3 <- stategdp_v2 %>% 
+  rename("Year" = "year",
+         "GDP" = "gdp")
+```
+
+```{r data-transformation-join, echo=TRUE}
+state_gdp_emissions <- left_join(emissions_v2, stategdp_v3, by = c('State','Year'))
+
+state_gdp_emissions <- state_gdp_emissions |> 
+  drop_na() |> 
+  rename("CO2" = "CO2\r\n(Metric Tons)")
+```
+
+### Research question 
+
+**Are states with higher GDPs more likely to produce energy that emits CO2?**
+
+### Cases 
+
+Each case represents a states annual energy usage and GDP for the respective 
+year. There are 1326 rows in the data set and eight columns:
+1. Year
+<br/>
+2. State
+<br/>
+3. Producer Type
+<br/>
+4. Energy Source
+<br/>
+5. CO2 (Metric Tons)
+<br/>
+6. SO2 (Metric Tons)
+<br/>
+7. NOx (Metric Tons)
+<br/>
+8. GDP
+
+### Data collection 
+This project uses data from the Department of Energy's (DOE) Annual Electric 
+Power Report and the U.S. Department of Commerce (DOC) State Annual Summary 
+Statistics.
+
+The Annual Electric Power Report is prepared by the Office of Energy Production,
+Conversion, and Delivery (EPCD), within the U.S. Energy Information 
+Administration in DOE. Data in the report is provided directly by respondents 
+into DOE's information systems. For more information about the data collection 
+process, please see the *Data Quality and Submission* section of the 
+Electric Power Annual Report: eia.gov/electricity/annual/pdf/epa.pdf.
+
+The State Annual Summary Statistics provided by DOC are estimated using two data
+sources: (1) wages and salaries data from the Bureau of Labor Statistics and (2) 
+value-added, receipts, and payroll data from the Census Bureau's economic 
+censuses. These data sources are then used to estimate the State GDP following 
+the estimation methodology outlined in the DOC's Gross Domestric Product by 
+State Estimation Methodology. For more information please see the methodology:
+bea.gov/sites/default/files/methodologies/0417_GDP_by_State_Methodology.pdf.
+
+### Type of study 
+
+This is an observational study.
+
+### Data Sources
+1. [DOC/BEA's GDP and Personal Income by State](https://www.bea.gov/itable/regional-gdp-and-personal-income)
+<br>
+2. [DOE/EIA's Electric Power Industry Esimated Emissions by State](https://www.eia.gov/electricity/data.php)
+
+
+### Response 
+
+The response variable is state GDP and is numerical.
+
+
+### Explanatory 
+
+The explanatory variable is CO2 Emissions from Energy Production and is 
+numerical.
+
+
+### Relevant summary statistics 
+
+```{r summary-statistics-plots, echo=TRUE}
+describe(state_gdp_emissions)
+#Findings: DC may need to be excluded from this evaluation due to missing data.
+
+options(scipen=999)
+
+gdp_plot <- ggplot(state_gdp_emissions, aes(x=Year, y=GDP, color=State))+
+  geom_line()+
+  labs(title ="State GDP Over Time", 
+       x="Year",
+       y= "GDP (in billions)")+
+  theme(legend.position="none")
+
+co2_plot <- ggplot(state_gdp_emissions, aes(x=Year, y=`CO2`, color=State))+
+  geom_line()+
+  labs(title ="State CO2 Emissions from Energy Production Over Time", 
+       x="Year",
+       y= "CO2 Emissions (Metric Tons)")+
+    theme(legend.position="none")
+```
+
+The graphs above are not very helpful if they are not interactive, therefore,
+I am providing the plots that are interactive and if you hover you can see 
+summary information. Note, the interactive plots are only accessible in HTML
+files and within the Rmd. 
+
+```{r plotly-plots, echo=TRUE}
+ggplotly(gdp_plot)
+
+ggplotly(co2_plot)
+
+```
+
+```{r summary-statistics, echo=TRUE}
+
+state_gdp_emissions |> 
+summarise(median_GDP = median(GDP),
+            mean_GDP = mean(GDP),
+            max_GDP = max(GDP),
+            iqr_GDP = IQR(GDP),
+            sd_GDP = sd(GDP)
+  )
+
+state_gdp_emissions |> 
+summarise(median_CO2 = median(CO2),
+            mean_CO2 = mean(CO2),
+            max_CO2 = max(CO2),
+            iqr_CO2 = IQR(CO2),
+            sd_CO2 = sd(CO2)
+  )
+
+length(unique(state_gdp_emissions$State))
+
+```
+
+
